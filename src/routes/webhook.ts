@@ -183,22 +183,27 @@ export function createWebhookRouter(schedulingService: SchedulingService | null)
       // Get the calendar service from scheduling service
       const calendarService = (schedulingService as any).calendarService;
       
-      // Test calendar access by getting events for today
+      // Test calendar access by getting events for a broader range
       const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      const nextWeek = new Date(today);
+      nextWeek.setDate(nextWeek.getDate() + 7);
       
-      const events = await calendarService.getEvents(today, tomorrow);
+      const events = await calendarService.getEvents(today, nextWeek);
       
       res.json({
         success: true,
         message: 'Google Calendar connection successful',
         calendar_id: (calendarService as any).calendarId,
         events_found: events.length,
-        events: events.slice(0, 3), // Show first 3 events
+        events: events.slice(0, 5), // Show first 5 events
         test_date_range: {
           start: today.toISOString(),
-          end: tomorrow.toISOString(),
+          end: nextWeek.toISOString(),
+        },
+        debug_info: {
+          today_date: today.toDateString(),
+          timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          calendar_service_initialized: !!calendarService,
         },
       });
     } catch (error) {
