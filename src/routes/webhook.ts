@@ -183,6 +183,26 @@ export function createWebhookRouter(schedulingService: SchedulingService | null)
       // Get the calendar service from scheduling service
       const calendarService = (schedulingService as any).calendarService;
       
+      // Get calendar metadata to verify we're looking at the right calendar
+      const calendar = (calendarService as any).calendar;
+      const calendarId = (calendarService as any).calendarId;
+      
+      let calendarInfo = null;
+      try {
+        const calendarResponse = await calendar.calendars.get({
+          calendarId: calendarId,
+        });
+        calendarInfo = {
+          id: calendarResponse.data.id,
+          summary: calendarResponse.data.summary,
+          description: calendarResponse.data.description,
+          timeZone: calendarResponse.data.timeZone,
+          accessRole: calendarResponse.data.accessRole,
+        };
+      } catch (error) {
+        calendarInfo = { error: 'Failed to get calendar info', details: error instanceof Error ? error.message : 'Unknown error' };
+      }
+      
       // Test multiple date ranges to find events
       const now = new Date();
       const tomorrow = new Date(now);
@@ -203,6 +223,7 @@ export function createWebhookRouter(schedulingService: SchedulingService | null)
         success: true,
         message: 'Google Calendar connection successful',
         calendar_id: (calendarService as any).calendarId,
+        calendar_info: calendarInfo,
         events_summary: {
           today_tomorrow: todayEvents.length,
           next_week: weekEvents.length,
