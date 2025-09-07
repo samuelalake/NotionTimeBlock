@@ -29,98 +29,84 @@ app.use((req, res, next) => {
   next();
 });
 
-async function initializeServices() {
-  try {
-    // Validate required environment variables
-    const requiredEnvVars = [
-      'NOTION_API_KEY',
-      'NOTION_DATABASE_ID',
-      'GOOGLE_CALENDAR_CREDENTIALS_PATH',
-    ];
+// Initialize services synchronously for Vercel
+let schedulingService: SchedulingService;
 
-    const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
-    if (missingVars.length > 0) {
-      throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
-    }
+try {
+  // Validate required environment variables
+  const requiredEnvVars = [
+    'NOTION_API_KEY',
+    'NOTION_DATABASE_ID',
+    'GOOGLE_CALENDAR_CREDENTIALS_PATH',
+  ];
 
-    // Initialize services
-    const notionService = new NotionService(
-      process.env.NOTION_API_KEY!,
-      process.env.NOTION_DATABASE_ID!
-    );
-
-    const calendarService = new CalendarService(
-      process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH!,
-      process.env.GOOGLE_CALENDAR_ID || 'primary'
-    );
-
-    const schedulingService = new SchedulingService(calendarService, notionService);
-
-    // Validate Notion database
-    const isDatabaseValid = await notionService.validateDatabase();
-    if (!isDatabaseValid) {
-      logger.warn('Notion database validation failed - some features may not work correctly');
-    }
-
-    // Set up routes
-    app.use('/webhook', createWebhookRouter(schedulingService));
-
-    // Root endpoint
-    app.get('/', (req, res) => {
-      res.json({
-        message: 'Notion Time Blocking Automation API',
-        version: '1.0.0',
-        status: 'running',
-        endpoints: {
-          health: '/webhook/health',
-          schedule: '/webhook/schedule',
-          slots: '/webhook/slots',
-        },
-      });
-    });
-
-    // Error handling middleware
-    app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      logger.error('Unhandled error', { error: err.message, stack: err.stack });
-      res.status(500).json({
-        success: false,
-        error: 'Internal server error',
-        message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
-      });
-    });
-
-    // 404 handler
-    app.use('*', (req, res) => {
-      res.status(404).json({
-        success: false,
-        error: 'Not found',
-        message: `Route ${req.originalUrl} not found`,
-      });
-    });
-
-    logger.info('Services initialized successfully');
-    return { notionService, calendarService, schedulingService };
-  } catch (error) {
-    logger.error('Failed to initialize services', { error });
-    throw error;
+  const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
+  if (missingVars.length > 0) {
+    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
   }
+
+  // Initialize services
+  const notionService = new NotionService(
+    process.env.NOTION_API_KEY!,
+    process.env.NOTION_DATABASE_ID!
+  );
+
+  const calendarService = new CalendarService(
+    process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH!,
+    process.env.GOOGLE_CALENDAR_ID || 'primary'
+  );
+
+  schedulingService = new SchedulingService(calendarService, notionService);
+  logger.info('Services initialized successfully');
+} catch (error) {
+  logger.error('Failed to initialize services', { error });
+  // Don't throw here, let the app start and handle errors in routes
 }
 
-// Start server
-async function startServer() {
-  try {
-    await initializeServices();
+// Set up routes
+app.use('/webhook', createWebhookRouter(schedulingService!));
 
-    app.listen(PORT, () => {
-      logger.info(`Server running on port ${PORT}`, {
-        environment: process.env.NODE_ENV || 'development',
-        port: PORT,
-      });
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({
+    message: 'Notion Time Blocking Automation API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/webhook/health',
+      schedule: '/webhook/schedule',
+      slots: '/webhook/slots',
+    },
+  });
+});
+
+// Error handling middleware
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  logger.error('Unhandled error', { error: err.message, stack: err.stack });
+  res.status(500).json({
+    success: false,
+    error: 'Internal server error',
+    message: process.env.NODE_ENV === 'development' ? err.message : 'Something went wrong',
+  });
+});
+
+// 404 handler
+app.use('*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: 'Not found',
+    message: `Route ${req.originalUrl} not found`,
+  });
+});
+
+// Start server (only for local development)
+if (process.env.NODE_ENV !== 'production' || !process.env.VERCEL) {
+  app.listen(PORT, () => {
+    logger.info(`Server running on port ${PORT}`, {
+      environment: process.env.NODE_ENV || 'development',
+      port: PORT,
     });
-  } catch (error) {
-    logger.error('Failed to start server', { error });
-    process.exit(1);
-  }
+  });
 }
 
 // Handle graceful shutdown
@@ -134,6 +120,6 @@ process.on('SIGINT', () => {
   process.exit(0);
 });
 
-// Start the application
-startServer();
+// Export app for Vercel
+export default app;
 
