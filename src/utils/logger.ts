@@ -20,8 +20,8 @@ export const logger = winston.createLogger({
   ],
 });
 
-// Add file logging in production
-if (process.env.NODE_ENV === 'production') {
+// Add file logging in production (but not in Vercel serverless environment)
+if (process.env.NODE_ENV === 'production' && !process.env.VERCEL) {
   logger.add(
     new winston.transports.File({
       filename: 'logs/error.log',
