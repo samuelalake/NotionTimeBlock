@@ -71,7 +71,14 @@ export class NotionService {
       };
     }
 
-    // Skip "Scheduling Status" since it doesn't exist in your database
+    // Update Scheduling Status if it exists
+    if (updates['Scheduling Status']) {
+      properties['Scheduling Status'] = {
+        select: {
+          name: updates['Scheduling Status'],
+        },
+      };
+    }
 
     return properties;
   }
