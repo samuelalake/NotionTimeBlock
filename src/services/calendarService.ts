@@ -7,11 +7,28 @@ export class CalendarService {
   private calendar: calendar_v3.Calendar;
   private calendarId: string;
 
-  constructor(credentialsPath: string, calendarId: string) {
-    const auth = new google.auth.GoogleAuth({
-      keyFile: credentialsPath,
-      scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
-    });
+  constructor(credentials: string, calendarId: string) {
+    let auth: any;
+
+    try {
+      // Check if credentials is a JSON string (for Vercel environment variables)
+      if (credentials.startsWith('{')) {
+        const credentialsObj = JSON.parse(credentials);
+        auth = new google.auth.GoogleAuth({
+          credentials: credentialsObj,
+          scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+        });
+      } else {
+        // Assume it's a file path (for local development)
+        auth = new google.auth.GoogleAuth({
+          keyFile: credentials,
+          scopes: ['https://www.googleapis.com/auth/calendar.readonly'],
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to initialize Google Calendar auth', { error });
+      throw new Error('Invalid Google Calendar credentials format');
+    }
 
     this.calendar = google.calendar({ version: 'v3', auth });
     this.calendarId = calendarId;

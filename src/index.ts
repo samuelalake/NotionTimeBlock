@@ -30,15 +30,20 @@ app.use((req, res, next) => {
 });
 
 // Initialize services synchronously for Vercel
-let schedulingService: SchedulingService;
+let schedulingService: SchedulingService | null = null;
 
 try {
   // Validate required environment variables
   const requiredEnvVars = [
     'NOTION_API_KEY',
     'NOTION_DATABASE_ID',
-    'GOOGLE_CALENDAR_CREDENTIALS_PATH',
   ];
+
+  // For Vercel, we'll use environment variables for Google Calendar credentials
+  const googleCredentials = process.env.GOOGLE_CALENDAR_CREDENTIALS || process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH;
+  if (!googleCredentials) {
+    requiredEnvVars.push('GOOGLE_CALENDAR_CREDENTIALS or GOOGLE_CALENDAR_CREDENTIALS_PATH');
+  }
 
   const missingVars = requiredEnvVars.filter(varName => !process.env[varName]);
   if (missingVars.length > 0) {
@@ -52,7 +57,7 @@ try {
   );
 
   const calendarService = new CalendarService(
-    process.env.GOOGLE_CALENDAR_CREDENTIALS_PATH!,
+    googleCredentials!,
     process.env.GOOGLE_CALENDAR_ID || 'primary'
   );
 
@@ -64,7 +69,18 @@ try {
 }
 
 // Set up routes
-app.use('/webhook', createWebhookRouter(schedulingService!));
+if (schedulingService) {
+  app.use('/webhook', createWebhookRouter(schedulingService));
+} else {
+  // Add a fallback route when services are not initialized
+  app.use('/webhook', (req, res) => {
+    res.status(503).json({
+      success: false,
+      error: 'Service unavailable',
+      message: 'Services are not properly initialized. Please check environment variables.',
+    });
+  });
+}
 
 // Root endpoint
 app.get('/', (req, res) => {

@@ -25,7 +25,7 @@ const taskDataSchema = Joi.object({
   last_edited_time: Joi.string().isoDate().optional(), // When the task was created
 });
 
-export function createWebhookRouter(schedulingService: SchedulingService): Router {
+export function createWebhookRouter(schedulingService: SchedulingService | null): Router {
   // Health check endpoint
   router.get('/health', (req: Request, res: Response) => {
     res.json({
@@ -39,6 +39,16 @@ export function createWebhookRouter(schedulingService: SchedulingService): Route
   router.post('/schedule', async (req: Request, res: Response) => {
     try {
       logger.info('Received scheduling request', { body: req.body });
+
+      // Check if scheduling service is available
+      if (!schedulingService) {
+        logger.error('Scheduling service not available');
+        return res.status(503).json({
+          success: false,
+          error: 'Service unavailable',
+          message: 'Scheduling service is not properly initialized. Please check environment variables.',
+        });
+      }
 
       // Validate request body
       const { error, value } = taskDataSchema.validate(req.body);
@@ -94,6 +104,15 @@ export function createWebhookRouter(schedulingService: SchedulingService): Route
       const { taskId } = req.params;
       logger.info('Debug: Fetching task', { taskId });
 
+      // Check if scheduling service is available
+      if (!schedulingService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Service unavailable',
+          message: 'Scheduling service is not properly initialized.',
+        });
+      }
+
       // Use the Notion service to fetch the task
       const notionService = (schedulingService as any).notionService;
       const task = await notionService.getTask(taskId);
@@ -121,6 +140,15 @@ export function createWebhookRouter(schedulingService: SchedulingService): Route
     try {
       const { task_id, test } = req.body;
       logger.info('Debug: Testing task update', { task_id, test });
+
+      // Check if scheduling service is available
+      if (!schedulingService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Service unavailable',
+          message: 'Scheduling service is not properly initialized.',
+        });
+      }
 
       // Use the Notion service to update the task
       const notionService = (schedulingService as any).notionService;
