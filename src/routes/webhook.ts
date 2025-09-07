@@ -169,6 +169,48 @@ export function createWebhookRouter(schedulingService: SchedulingService | null)
     }
   });
 
+  // Test endpoint to verify Google Calendar connection
+  router.get('/test/calendar', async (req: Request, res: Response) => {
+    try {
+      if (!schedulingService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Service unavailable',
+          message: 'Scheduling service is not properly initialized.',
+        });
+      }
+
+      // Get the calendar service from scheduling service
+      const calendarService = (schedulingService as any).calendarService;
+      
+      // Test calendar access by getting events for today
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      
+      const events = await calendarService.getEvents(today, tomorrow);
+      
+      res.json({
+        success: true,
+        message: 'Google Calendar connection successful',
+        calendar_id: (calendarService as any).calendarId,
+        events_found: events.length,
+        events: events.slice(0, 3), // Show first 3 events
+        test_date_range: {
+          start: today.toISOString(),
+          end: tomorrow.toISOString(),
+        },
+      });
+    } catch (error) {
+      logger.error('Error testing calendar connection', { error });
+      res.status(500).json({
+        success: false,
+        error: 'Calendar connection failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
   // Endpoint to get available time slots (for debugging/testing)
   router.post('/slots', async (req: Request, res: Response) => {
     try {
