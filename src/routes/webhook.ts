@@ -183,25 +183,48 @@ export function createWebhookRouter(schedulingService: SchedulingService | null)
       // Get the calendar service from scheduling service
       const calendarService = (schedulingService as any).calendarService;
       
-      // Test calendar access by getting events for a broader range
-      const today = new Date();
-      const nextWeek = new Date(today);
+      // Test multiple date ranges to find events
+      const now = new Date();
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const nextWeek = new Date(now);
       nextWeek.setDate(nextWeek.getDate() + 7);
       
-      const events = await calendarService.getEvents(today, nextWeek);
+      // Test different date ranges
+      const todayEvents = await calendarService.getEvents(now, tomorrow);
+      const weekEvents = await calendarService.getEvents(now, nextWeek);
+      
+      // Also test with a broader range (past week to next week)
+      const pastWeek = new Date(now);
+      pastWeek.setDate(pastWeek.getDate() - 7);
+      const allEvents = await calendarService.getEvents(pastWeek, nextWeek);
       
       res.json({
         success: true,
         message: 'Google Calendar connection successful',
         calendar_id: (calendarService as any).calendarId,
-        events_found: events.length,
-        events: events.slice(0, 5), // Show first 5 events
-        test_date_range: {
-          start: today.toISOString(),
-          end: nextWeek.toISOString(),
+        events_summary: {
+          today_tomorrow: todayEvents.length,
+          next_week: weekEvents.length,
+          past_week_to_next_week: allEvents.length,
+        },
+        events: allEvents.slice(0, 5), // Show first 5 events from broader range
+        test_date_ranges: {
+          today_tomorrow: {
+            start: now.toISOString(),
+            end: tomorrow.toISOString(),
+          },
+          next_week: {
+            start: now.toISOString(),
+            end: nextWeek.toISOString(),
+          },
+          broader_range: {
+            start: pastWeek.toISOString(),
+            end: nextWeek.toISOString(),
+          },
         },
         debug_info: {
-          today_date: today.toDateString(),
+          current_time: now.toISOString(),
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           calendar_service_initialized: !!calendarService,
         },
