@@ -169,6 +169,54 @@ export function createWebhookRouter(schedulingService: SchedulingService | null)
     }
   });
 
+  // Test endpoint to check Notion database properties
+  router.get('/test/notion', async (req: Request, res: Response) => {
+    try {
+      if (!schedulingService) {
+        return res.status(503).json({
+          success: false,
+          error: 'Service unavailable',
+          message: 'Scheduling service is not properly initialized.',
+        });
+      }
+
+      // Get the Notion service from scheduling service
+      const notionService = (schedulingService as any).notionService;
+      
+      // Get database properties
+      const databaseId = (notionService as any).databaseId;
+      const notion = (notionService as any).notion;
+      
+      const response = await notion.databases.retrieve({
+        database_id: databaseId,
+      });
+      
+      const properties = Object.keys(response.properties);
+      const propertyDetails = Object.entries(response.properties).map(([key, value]: [string, any]) => ({
+        name: key,
+        type: value.type,
+        description: value.description || null,
+      }));
+      
+      res.json({
+        success: true,
+        message: 'Notion database connection successful',
+        database_id: databaseId,
+        database_title: response.title?.[0]?.text?.content || 'Untitled',
+        total_properties: properties.length,
+        properties: properties,
+        property_details: propertyDetails,
+      });
+    } catch (error) {
+      logger.error('Error testing Notion connection', { error });
+      res.status(500).json({
+        success: false,
+        error: 'Notion connection failed',
+        message: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
   // Test endpoint to verify Google Calendar connection
   router.get('/test/calendar', async (req: Request, res: Response) => {
     try {
